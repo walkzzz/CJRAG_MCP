@@ -175,38 +175,41 @@ def clear_vec_db(md_file_path: str, save_path: str | None = None):
 # CLI
 # -------------------------------------------------
 if __name__ == "__main__":
+
     # 1. 构建 / 更新向量库
     # build_vec_db("./")
 
-    # 2. 查询
-    # results = search_vec_db("eDSL", top_k=3)
+    # # 2. 查询
+    # results = search_vec_db("仓颉语言的 eDSL", "tutorial.md", top_k=5, save_path="./")
+
     # for r in results:
     #     print(r["score"], r["chunk"][:100])
 
-    # # 3. 清空
-    # clear_vec_db()
+    # 3. 清空向量库
+    # clear_vec_db(md_file_path="tutorial.md", save_path="./")
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--docs", type=pathlib.Path, default="docs",
-                    help="markdown 根目录")
-    ap.add_argument("--ingest", action="store_true",
-                    help="执行入库")
-    ap.add_argument("--query", type=str,
-                    help="查询文本")
-    ap.add_argument("--md-file", type=str,
-                    help="指定要查询或清空的.md文件路径")
-    ap.add_argument("--save-path", type=str,
-                    help="数据库保存路径")
-    args = ap.parse_args()
+    # ap = argparse.ArgumentParser()
+    # ap.add_argument("--docs", type=pathlib.Path, default="docs",
+    #                 help="markdown 根目录")
+    # ap.add_argument("--ingest", action="store_true",
+    #                 help="执行入库")
+    # ap.add_argument("--query", type=str,
+    #                 help="查询文本")
+    # ap.add_argument("--md-file", type=str,
+    #                 help="指定要查询或清空的.md文件路径")
+    # ap.add_argument("--save-path", type=str,
+    #                 help="数据库保存路径")
+    # args = ap.parse_args()
 
-    if args.ingest:
-        ingest(args.docs.expanduser().resolve(), args.save_path)
-    elif args.query and args.md_file:
-        results = search_vec_db(args.query, args.md_file, top_k=5, save_path=args.save_path)
-        for r in results:
-            print(f"[{r['score']:.4f}] {r['doc']}")
-            print(r["chunk"][:200] + "...\n")
-    elif args.query:
-        print("请提供 --md-file 参数以指定要查询的.md文件")
-    else:
-        ap.print_help()
+    # if args.ingest:
+    #     ingest(args.docs.expanduser().resolve(), args.save_path)
+    # elif args.query and args.md_file:
+    #     results = search_vec_db(args.query, args.md_file, top_k=5, save_path=args.save_path)
+    #     for r in results:
+    #         print(f"[{r['score']:.4f}] {r['doc']}")
+    #         print(r["chunk"][:200] + "...\n")
+    # elif args.query:
+    #     print("请提供 --md-file 参数以指定要查询的.md文件")
+    # else:
+    #     ap.print_help()
+    pass
