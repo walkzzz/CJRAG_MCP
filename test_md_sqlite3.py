@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-单元测试文件，用于测试 main.py 中的功能。
+单元测试文件，用于测试 md_sqlite3.py 中的功能。
 """
 
 import unittest
@@ -13,7 +13,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 
 # 假设 main.py 与 test_main.py 在同一目录下
-import main
+import md_sqlite3
 
 class TestMainFunctions(unittest.TestCase):
     
@@ -22,7 +22,7 @@ class TestMainFunctions(unittest.TestCase):
         # 创建临时目录和文件
         self.test_dir = tempfile.TemporaryDirectory()
         self.temp_md_file = pathlib.Path(self.test_dir.name) / "test.md"
-        self.temp_db_path = main.get_db_path(str(self.temp_md_file))
+        self.temp_db_path = md_sqlite3.get_db_path(str(self.temp_md_file))
         self.conn = None  # 用于存储数据库连接
     
     def tearDown(self):
@@ -42,7 +42,7 @@ class TestMainFunctions(unittest.TestCase):
         
         try:
             self.conn = sqlite3.connect(tmp_db_path)
-            main.init_db(self.conn)
+            md_sqlite3.init_db(self.conn)
             # 检查表是否创建成功
             cur = self.conn.cursor()
             cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks'")
@@ -54,8 +54,8 @@ class TestMainFunctions(unittest.TestCase):
         finally:
             os.unlink(tmp_db_path)
     
-    @patch('main.SentenceTransformer')
-    @patch('main.MarkdownTextSplitter')
+    @patch('md_sqlite3.SentenceTransformer')
+    @patch('md_sqlite3.MarkdownTextSplitter')
     def test_ingest(self, mock_splitter, mock_sentence_transformer):
         # 模拟 SentenceTransformer
         mock_encoder_instance = MagicMock()
@@ -76,7 +76,7 @@ class TestMainFunctions(unittest.TestCase):
             f.write(test_md_content)
 
         # 调用 ingest 函数
-        main.ingest(pathlib.Path(self.test_dir.name))
+        md_sqlite3.ingest(pathlib.Path(self.test_dir.name))
 
         # 验证数据库中是否有数据插入
         self.conn = sqlite3.connect(self.temp_db_path)
@@ -90,7 +90,7 @@ class TestMainFunctions(unittest.TestCase):
         """测试 clear_vec_db 函数是否能正确清空数据库。"""
         # 先插入一些数据
         self.conn = sqlite3.connect(self.temp_db_path)
-        main.init_db(self.conn)
+        md_sqlite3.init_db(self.conn)
         self.conn.execute("INSERT INTO chunks(doc, chunk) VALUES (?, ?)", ("test_doc", "test_chunk"))
         rowid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         # 插入一个有效的 384 维向量
@@ -101,11 +101,11 @@ class TestMainFunctions(unittest.TestCase):
         self.conn = None
         
         # 调用 clear_vec_db
-        main.clear_vec_db(str(self.temp_md_file))
+        md_sqlite3.clear_vec_db(str(self.temp_md_file))
         
         # 验证数据是否被清空
         self.conn = sqlite3.connect(self.temp_db_path)
-        main.init_db(self.conn)  # 确保 sqlite-vec 扩展被加载
+        md_sqlite3.init_db(self.conn)  # 确保 sqlite-vec 扩展被加载
         cur = self.conn.execute("SELECT COUNT(*) FROM chunks")
         count_chunks = cur.fetchone()[0]
         cur = self.conn.execute("SELECT COUNT(*) FROM vec_chunks")
@@ -124,12 +124,12 @@ class TestMainFunctions(unittest.TestCase):
             f.write(test_md_content)
         
         # 调用 ingest 函数，将文件内容插入数据库
-        main.ingest(pathlib.Path(self.test_dir.name))
+        md_sqlite3.ingest(pathlib.Path(self.test_dir.name))
         
         # 调用 query 函数，验证函数是否能正常执行而不抛出异常
         query_text = "test"
         try:
-            main.query(query_text, str(self.temp_md_file))
+            md_sqlite3.query(query_text, str(self.temp_md_file))
             # 如果没有抛出异常，则测试通过
             self.assertTrue(True)
         except Exception as e:
@@ -145,17 +145,17 @@ class TestMainFunctions(unittest.TestCase):
             f.write(test_md_content)
         
         # 调用 ingest 函数，将文件内容插入数据库
-        main.ingest(pathlib.Path(self.test_dir.name))
+        md_sqlite3.ingest(pathlib.Path(self.test_dir.name))
         
         # 调用 search_vec_db 函数，验证函数是否能正常执行而不抛出异常
         query_text = "test"
         try:
-            results = main.search_vec_db(query_text, str(self.temp_md_file), top_k=5)
+            results = md_sqlite3.search_vec_db(query_text, str(self.temp_md_file), top_k=5)
             # 如果没有抛出异常，则测试通过
             self.assertIsInstance(results, list)
         except Exception as e:
             # 如果抛出异常，则测试失败
             self.fail(f"search_vec_db 函数执行时抛出异常: {e}")
 
-if __name__ == '__main__':
+if __name__ == '__md_sqlite3__':
     unittest.main()
