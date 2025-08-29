@@ -1,0 +1,12 @@
+[project]
+name = "cjrag-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain-text-splitters>=0.3.10",
+    "mcp[cli]>=1.13.1",
+    "sentence-transformers>=5.1.0",
+    "sqlite-vec>=0.1.6",
+]
