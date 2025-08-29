@@ -13,7 +13,13 @@ import sqlite_vec               # 0.1.1 及以上
 from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import MarkdownTextSplitter
 
-DB_PATH   = pathlib.Path(__file__).with_name("md_vec.db")
+def get_db_path(md_file_path: str) -> pathlib.Path:
+    """
+    根据.md文件的名称生成数据库文件路径
+    """
+    md_file_name = pathlib.Path(md_file_path).stem
+    return pathlib.Path(__file__).with_name(f"{md_file_name}_vec.db")
+
 VEC_DIM   = 384                 # all-MiniLM-L6-v2 输出维度
 CHUNK_SZ  = 256
 OVERLAP   = 30
@@ -45,11 +51,13 @@ def ingest(root: pathlib.Path):
     encoder  = SentenceTransformer("all-MiniLM-L6-v2")
     splitter = MarkdownTextSplitter(chunk_size=CHUNK_SZ, chunk_overlap=OVERLAP)
 
-    conn = sqlite3.connect(DB_PATH)
-    try:
-        init_db(conn)
-        cur = conn.cursor()
-        for md in root.rglob("*.md"):
+    for md in root.rglob("*.md"):
+        # 为每个.md文件创建一个单独的数据库
+        db_path = get_db_path(str(md))
+        conn = sqlite3.connect(db_path)
+        try:
+            init_db(conn)
+            cur = conn.cursor()
             text = md.read_text(encoding="utf-8")
             for ch in splitter.split_text(text):
                 cur.execute(
@@ -62,19 +70,24 @@ def ingest(root: pathlib.Path):
                     "INSERT INTO vec_chunks(rowid, embedding) VALUES (?, ?)",
                     (rowid, vec)
                 )
-        conn.commit()
-    finally:
-        conn.close()
+            conn.commit()
+        finally:
+            conn.close()
     print("ingest done")
 
 # -------------------------------------------------
 # 向量查询
 # -------------------------------------------------
-def query(q: str, k: int = 5):
+def query(q: str, md_file_path: str, k: int = 5):
+    """
+    在指定的.md文件对应的向量数据库中进行查询
+    """
     encoder = SentenceTransformer("all-MiniLM-L6-v2")
     vec_q   = encoder.encode([q]).astype("float32").tobytes()
-
-    conn = sqlite3.connect(DB_PATH)
+    
+    # 根据.md文件路径获取对应的数据库路径
+    db_path = get_db_path(md_file_path)
+    conn = sqlite3.connect(db_path)
     try:
         init_db(conn)
         cur = conn.execute("""
@@ -101,15 +114,17 @@ def build_vec_db(root: str | pathlib.Path = "docs"):
     """
     ingest(pathlib.Path(root).expanduser().resolve())
 
-def search_vec_db(query_text: str, top_k: int = 5) -> list[dict]:
+def search_vec_db(query_text: str, md_file_path: str, top_k: int = 5) -> list[dict]:
     """
-    在向量数据库中做相似度搜索。
+    在指定的.md文件对应的向量数据库中做相似度搜索。
     返回 [{'doc':..., 'chunk':..., 'score':...}, ...]
     """
     encoder = SentenceTransformer("all-MiniLM-L6-v2")
     vec_q = encoder.encode([query_text]).astype("float32").tobytes()
-
-    conn = sqlite3.connect(DB_PATH)
+    
+    # 根据.md文件路径获取对应的数据库路径
+    db_path = get_db_path(md_file_path)
+    conn = sqlite3.connect(db_path)
     try:
         init_db(conn)
         cur = conn.execute("""
@@ -126,11 +141,13 @@ def search_vec_db(query_text: str, top_k: int = 5) -> list[dict]:
         conn.close()
     return [{"doc": r[0], "chunk": r[1], "score": r[2]} for r in rows]
 
-def clear_vec_db():
+def clear_vec_db(md_file_path: str):
     """
-    清空数据库（chunks 与向量表）
+    清空指定.md文件对应的数据库（chunks 与向量表）
     """
-    conn = sqlite3.connect(DB_PATH)
+    # 根据.md文件路径获取对应的数据库路径
+    db_path = get_db_path(md_file_path)
+    conn = sqlite3.connect(db_path)
     try:
         init_db(conn)  # 确保 sqlite-vec 扩展被加载
         conn.execute("DELETE FROM chunks")
@@ -153,28 +170,35 @@ def clear_vec_db():
 # -------------------------------------------------
 if __name__ == "__main__":
     # 1. 构建 / 更新向量库
-    build_vec_db("docs")
+    # build_vec_db("./")
 
-    # # 2. 查询
-    # results = search_vec_db("如何配置 CUDA", top_k=3)
+    # 2. 查询
+    # results = search_vec_db("eDSL", top_k=3)
     # for r in results:
     #     print(r["score"], r["chunk"][:100])
 
     # # 3. 清空
     # clear_vec_db()
 
-    # ap = argparse.ArgumentParser()
-    # ap.add_argument("--docs", type=pathlib.Path, default="docs",
-    #                 help="markdown 根目录")
-    # ap.add_argument("--ingest", action="store_true",
-    #                 help="执行入库")
-    # ap.add_argument("--query", type=str,
-    #                 help="查询文本")
-    # args = ap.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--docs", type=pathlib.Path, default="docs",
+                    help="markdown 根目录")
+    ap.add_argument("--ingest", action="store_true",
+                    help="执行入库")
+    ap.add_argument("--query", type=str,
+                    help="查询文本")
+    ap.add_argument("--md-file", type=str,
+                    help="指定要查询或清空的.md文件路径")
+    args = ap.parse_args()
 
-    # if args.ingest:
-    #     ingest(args.docs.expanduser().resolve())
-    # elif args.query:
-    #     query(args.query)
-    # else:
-    #     ap.print_help()
+    if args.ingest:
+        ingest(args.docs.expanduser().resolve())
+    elif args.query and args.md_file:
+        results = search_vec_db(args.query, args.md_file, top_k=5)
+        for r in results:
+            print(f"[{r['score']:.4f}] {r['doc']}")
+            print(r["chunk"][:200] + "...\n")
+    elif args.query:
+        print("请提供 --md-file 参数以指定要查询的.md文件")
+    else:
+        ap.print_help()
